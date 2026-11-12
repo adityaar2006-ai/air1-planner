@@ -33,7 +33,7 @@ form .grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}.task{display:flex
     <div class="stat"><b id="streakCount">0</b><span>DAY STREAK*</span></div>
   </div>
   <nav class="tabs">
-    <button class="tab active" data-tab="today">Today</button><button class="tab" data-tab="goals">Goals</button><button class="tab" data-tab="revision">Revision</button><button class="tab" data-tab="notes">Notebook</button><button class="tab" data-tab="review">Review & Backup</button>
+    <button class="tab active" data-tab="today">Today</button><button class="tab" data-tab="goals">Goals</button><button class="tab" data-tab="subjects">Subjects</button><button class="tab" data-tab="revision">Revision</button><button class="tab" data-tab="notes">Notebook</button><button class="tab" data-tab="review">Review & Backup</button>
   </nav>
   <main>
     <section id="today" class="panel">
@@ -52,6 +52,12 @@ form .grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}.task{display:flex
         <button type="submit" style="width:100%;margin-top:13px">Add to planner</button>
       </form></div>
       <div class="row section"><h3>All goals</h3><span class="small muted" id="goalTotal"></span></div><div id="allGoals" class="stack"></div>
+    </section>
+    <section id="subjects" class="panel hidden">
+      <h2>19-subject command centre</h2>
+      <p class="small muted">Track your first pass, notes, MCQs and revision rounds. Progress is saved on this device.</p>
+      <div class="card section"><div class="row"><b>Overall subject progress</b><span class="small muted" id="subjectOverall">0%</span></div><div class="progress"><i id="subjectBar" style="width:0%"></i></div><p class="small muted" id="subjectSummary">0 of 19 subjects started</p></div>
+      <div id="subjectList" class="stack"></div>
     </section>
     <section id="revision" class="panel hidden">
       <h2>Spaced revision system</h2><p class="small muted">Mark a topic learned to schedule reviews at 24 hours, 7 days and 30 days. Complete each review to close that cycle.</p>
@@ -76,17 +82,34 @@ form .grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}.task{display:flex
 </div>
 <script>
 const KEY='air1_study_os_v1';
+const SUBJECTS=['Anatomy','Physiology','Biochemistry','Pathology','Pharmacology','Microbiology','Forensic Medicine','Community Medicine (PSM)','ENT','Ophthalmology','General Medicine','General Surgery','Obstetrics & Gynaecology','Paediatrics','Orthopaedics','Dermatology','Psychiatry','Anaesthesia','Radiology'];
+const STAGES=[['first','First pass'],['notes','Notes'],['mcq','MCQs'],['rev1','Revision 1'],['rev2','Revision 2'],['rev3','Revision 3']];
 const $=id=>document.getElementById(id);
 const today=()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`};
 const plusDays=(date,n)=>{const d=new Date(date+'T12:00:00');d.setDate(d.getDate()+n);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`};
 const fmt=s=>new Date(s+'T12:00:00').toLocaleDateString(undefined,{day:'numeric',month:'short',year:'numeric'});
-let state={goals:[],topics:[],notes:'',reflection:'',history:[]};
+let state={goals:[],topics:[],notes:'',reflection:'',history:[],subjectProgress:{}};
 try{const saved=JSON.parse(localStorage.getItem(KEY)||'null');if(saved)state={...state,...saved}}catch(e){}
 function save(){localStorage.setItem(KEY,JSON.stringify(state));}
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function dueItems(){return state.topics.flatMap(t=>t.reviews.map((r,i)=>({...r,topic:t.title,subject:t.subject,topicId:t.id,index:i})))}
 function renderTask(g,revision=false){let late=revision&&g.date<today(),done=revision?g.done:g.done;return `<div class="task ${done?'done':''}"><input type="checkbox" ${done?'checked':''} data-kind="${revision?'revision':'goal'}" data-id="${g.id}" ${revision?`data-index="${g.index}"`:''}><div class="taskmain"><div class="row"><span class="tasktitle">${esc(revision?g.topic:g.title)}</span><span class="tag ${late?'late':revision&&g.date===today()?'soon':''}">${revision?esc(g.label||'Review'):esc(g.priority||'Goal')}</span></div><div class="meta">${esc(revision?`${g.subject||'General'} · ${g.label} · ${fmt(g.date)}`:`${g.subject||'General'} · Due ${fmt(g.date)}${g.minutes?' · '+g.minutes+' min':''}`)}</div>${!revision&&g.note?`<div class="meta">${esc(g.note)}</div>`:''}</div></div>`}
+function renderSubjects(){
+ const root=$('subjectList');
+ root.innerHTML=SUBJECTS.map((name,i)=>{
+  const progress=state.subjectProgress[name]||{};
+  const done=STAGES.filter(([key])=>progress[key]).length;
+  const pct=Math.round(done/STAGES.length*100);
+  return `<div class="card"><div class="row"><div><b>${i+1}. ${esc(name)}</b><div class="meta">${done}/${STAGES.length} milestones · ${pct}%</div></div><span class="tag">${pct===100?'Complete':pct?'In progress':'Not started'}</span></div><div class="progress"><i style="width:${pct}%"></i></div><div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:12px">${STAGES.map(([key,label])=>`<label style="display:flex;align-items:center;gap:7px;margin:0;color:var(--text);font-size:12px"><input type="checkbox" data-subject="${esc(name)}" data-stage="${key}" ${progress[key]?'checked':''} style="width:18px;height:18px;accent-color:#e9c878">${label}</label>`).join('')}</div></div>`;
+ }).join('');
+ const total=SUBJECTS.length*STAGES.length;
+ const completed=SUBJECTS.reduce((n,name)=>n+STAGES.filter(([key])=>(state.subjectProgress[name]||{})[key]).length,0);
+ const started=SUBJECTS.filter(name=>STAGES.some(([key])=>(state.subjectProgress[name]||{})[key])).length;
+ const pct=Math.round(completed/total*100);
+ $('subjectOverall').textContent=pct+'%';$('subjectBar').style.width=pct+'%';$('subjectSummary').textContent=`${started} of 19 subjects started · ${completed} of ${total} milestones completed`;
+}
 function render(){
+ renderSubjects();
  const goalsToday=state.goals.filter(g=>g.date===today()),doneToday=goalsToday.filter(g=>g.done).length;
  const due=dueItems().filter(r=>!r.done&&r.date<=today()).sort((a,b)=>a.date.localeCompare(b.date));
  $('todayDone').textContent=`${doneToday}/${goalsToday.length}`;$('pendingCount').textContent=due.length;
@@ -108,15 +131,15 @@ $('jumpGoals').onclick=()=>document.querySelector('[data-tab="goals"]').click();
 $('goalDate').value=today();$('topicDate').value=today();
 $('goalForm').onsubmit=e=>{e.preventDefault();state.goals.push({id:crypto.randomUUID(),title:$('goalTitle').value.trim(),subject:$('goalSubject').value.trim(),date:$('goalDate').value,priority:$('goalPriority').value,minutes:$('goalMinutes').value,note:$('goalNote').value.trim(),done:false});save();e.target.reset();$('goalDate').value=today();render();};
 $('topicForm').onsubmit=e=>{e.preventDefault();const date=$('topicDate').value;state.topics.push({id:crypto.randomUUID(),title:$('topicTitle').value.trim(),subject:$('topicSubject').value.trim(),reviews:[{label:'24-hour revision',date:plusDays(date,1),done:false},{label:'7-day revision',date:plusDays(date,7),done:false},{label:'1-month revision',date:plusDays(date,30),done:false}]});save();e.target.reset();$('topicDate').value=today();render();};
-document.addEventListener('change',e=>{const t=e.target;if(t.matches('[data-kind="goal"]')){const g=state.goals.find(x=>x.id===t.dataset.id);if(g){g.done=t.checked;g.completedDate=t.checked?today():null;save();render()}}if(t.matches('[data-kind="revision"]')){const topic=state.topics.find(x=>x.id===t.dataset.id);if(topic){topic.reviews[Number(t.dataset.index)].done=t.checked;save();render()}}});
+document.addEventListener('change',e=>{const t=e.target;if(t.matches('[data-subject][data-stage]')){const name=t.dataset.subject,key=t.dataset.stage;state.subjectProgress[name]=state.subjectProgress[name]||{};state.subjectProgress[name][key]=t.checked;save();renderSubjects()}if(t.matches('[data-kind="goal"]')){const g=state.goals.find(x=>x.id===t.dataset.id);if(g){g.done=t.checked;g.completedDate=t.checked?today():null;save();render()}}if(t.matches('[data-kind="revision"]')){const topic=state.topics.find(x=>x.id===t.dataset.id);if(topic){topic.reviews[Number(t.dataset.index)].done=t.checked;save();render()}}});
 document.addEventListener('click',e=>{const id=e.target.dataset.deleteGoal;if(id&&confirm('Delete this goal?')){state.goals=state.goals.filter(g=>g.id!==id);save();render()}});
 $('notepad').value=state.notes;$('notepad').addEventListener('input',()=>{state.notes=$('notepad').value;save();$('noteStatus').textContent='Saved just now';});
 $('reflection').value=state.reflection;$('reflection').addEventListener('input',()=>{state.reflection=$('reflection').value;save();$('reflectionStatus').textContent='Saved just now';});
 $('clearNotes').onclick=()=>{if(confirm('Clear your notebook?')){$('notepad').value='';state.notes='';save()}};
 $('exportBtn').onclick=()=>{const blob=new Blob([JSON.stringify({...state,exportedAt:new Date().toISOString()},null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='AIR1-planner-backup-'+today()+'.json';a.click();URL.revokeObjectURL(a.href)};
 $('importBtn').onclick=()=>$('importFile').click();
-$('importFile').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const data=JSON.parse(await f.text());if(!Array.isArray(data.goals)||!Array.isArray(data.topics))throw Error();state={...state,...data};save();$('notepad').value=state.notes||'';$('reflection').value=state.reflection||'';render();alert('Backup restored.')}catch(err){alert('That backup file could not be read.')}e.target.value=''};
-$('resetBtn').onclick=()=>{if(confirm('Delete ALL goals, revisions and notes from this browser? Export a backup first if needed.')){localStorage.removeItem(KEY);state={goals:[],topics:[],notes:'',reflection:'',history:[]};$('notepad').value='';$('reflection').value='';render()}};
+$('importFile').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const data=JSON.parse(await f.text());if(!Array.isArray(data.goals)||!Array.isArray(data.topics))throw Error();state={...state,...data,subjectProgress:data.subjectProgress||state.subjectProgress||{}};save();$('notepad').value=state.notes||'';$('reflection').value=state.reflection||'';render();alert('Backup restored.')}catch(err){alert('That backup file could not be read.')}e.target.value=''};
+$('resetBtn').onclick=()=>{if(confirm('Delete ALL goals, revisions and notes from this browser? Export a backup first if needed.')){localStorage.removeItem(KEY);state={goals:[],topics:[],notes:'',reflection:'',history:[],subjectProgress:{}};$('notepad').value='';$('reflection').value='';render()}};
 const quotes=[['“Small disciplines repeated with consistency every day lead to great achievements.”','— John C. Maxwell'],['“You do not rise to the level of your goals. You fall to the level of your systems.”','— James Clear'],['“Great things are done by a series of small things brought together.”','— Vincent van Gogh'],['“It always seems impossible until it is done.”','— Nelson Mandela']];
 const q=quotes[new Date().getDate()%quotes.length];$('quoteText').textContent=q[0];$('quoteBy').textContent=q[1];
 render();
