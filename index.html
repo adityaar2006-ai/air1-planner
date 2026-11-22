@@ -227,6 +227,11 @@ form .grid,.grid{display:grid;grid-template-columns:1fr;gap:10px}
           <button style="width:100%;margin-top:12px">Schedule 3 revisions</button>
         </form>
       </div>
+      <div class="section">
+        <div class="row"><h3>Completed syllabus tracker</h3><span class="small muted" id="topicTotal"></span></div>
+        <p class="small muted">Mark a topic as completed just like a goal. This is separate from its 24-hour, 7-day and 30-day revision checkboxes.</p>
+        <div id="allTopics" class="stack"></div>
+      </div>
       <div class="ipad-split">
         <div class="section"><h3>Due and overdue</h3><div id="dueRevisions" class="stack"></div></div>
         <div class="section"><h3>Upcoming</h3><div id="upcomingRevisions" class="stack"></div></div>
@@ -316,6 +321,15 @@ function render(){
   const all=dueItems().filter(r=>!r.done).sort((a,b)=>a.date.localeCompare(b.date));
   $('dueRevisions').innerHTML=all.filter(r=>r.date<=today()).length?all.filter(r=>r.date<=today()).map(r=>renderTask(r,true)).join(''):'<div class="empty">Nothing due right now.</div>';
   $('upcomingRevisions').innerHTML=all.filter(r=>r.date>today()).length?all.filter(r=>r.date>today()).map(r=>renderTask(r,true)).join(''):'<div class="empty">No upcoming revisions scheduled.</div>';
+  $('allTopics').innerHTML=state.topics.length?state.topics.map(t=>`<div class="task ${t.done?'done':''}">
+    <input type="checkbox" aria-label="${t.done?'Mark syllabus topic incomplete':'Mark syllabus topic complete'}" data-kind="topic" data-id="${t.id}" ${t.done?'checked':''}>
+    <div class="taskmain">
+      <div class="row"><span class="tasktitle">${esc(t.title)}</span><span class="tag">${t.done?'Completed':esc(t.subject||'General')}</span></div>
+      <div class="meta">${esc(t.subject||'General')} · Learned ${fmt(t.date||today())}</div>
+      <button type="button" class="secondary task-toggle" data-toggle-kind="topic" data-id="${t.id}">${t.done?'✓ Completed — undo':'Mark as completed ✓'}</button>
+    </div>
+  </div>`).join(''):'<div class="empty">Add a topic above to track syllabus completion.</div>';
+  $('topicTotal').textContent=state.topics.filter(t=>t.done).length+'/'+state.topics.length+' completed';
   const completed=state.goals.filter(g=>g.done).length;
   $('totalDone').textContent=completed;
   $('totalGoals').textContent=state.goals.length;
@@ -365,6 +379,8 @@ $('topicForm').onsubmit=e=>{
     id:crypto.randomUUID(),
     title:$('topicTitle').value.trim(),
     subject:$('topicSubject').value.trim(),
+    date:date,
+    done:false,
     reviews:[
       {label:'24-hour revision',date:plusDays(date,1),done:false},
       {label:'7-day revision',date:plusDays(date,7),done:false},
@@ -387,6 +403,10 @@ document.addEventListener('change',e=>{
     const topic=state.topics.find(x=>x.id===t.dataset.id);
     if(topic){topic.reviews[Number(t.dataset.index)].done=t.checked;save();render()}
   }
+  if(t.matches('[data-kind="topic"]')){
+    const topic=state.topics.find(x=>x.id===t.dataset.id);
+    if(topic){topic.done=t.checked;save();render()}
+  }
 });
 
 document.addEventListener('click',e=>{
@@ -402,6 +422,9 @@ document.addEventListener('click',e=>{
         const r=topic.reviews[Number(toggle.dataset.index)];
         if(r){r.done=!r.done;save();render()}
       }
+    }else if(kind==='topic'){
+      const topic=state.topics.find(x=>x.id===toggle.dataset.id);
+      if(topic){topic.done=!topic.done;save();render()}
     }
     return;
   }
