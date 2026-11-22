@@ -125,6 +125,10 @@ form .grid,.grid{display:grid;grid-template-columns:1fr;gap:10px}
         <div class="section"><h3>Priority goals</h3><div id="todayTasks" class="stack"></div></div>
         <div class="section"><h3>Revisions due today</h3><div id="todayRevisions" class="stack"></div></div>
       </div>
+      <div class="section">
+        <div class="row"><h3>Syllabus completion</h3><span class="small muted" id="todayTopicTotal"></span></div>
+        <div id="todayTopics" class="stack"></div>
+      </div>
     </section>
 
     <section id="habits" class="panel hidden">
@@ -316,6 +320,15 @@ function render(){
   $('todayDate').textContent=new Date().toLocaleDateString(undefined,{weekday:'long',day:'numeric',month:'long',year:'numeric'}).toUpperCase();
   $('todayTasks').innerHTML=goalsToday.length?goalsToday.map(g=>renderTask(g)).join(''):'<div class="empty">No goals scheduled for today. Add one deliberate action.</div>';
   $('todayRevisions').innerHTML=due.length?due.slice(0,5).map(r=>renderTask(r,true)).join(''):'<div class="empty">No revisions due. Keep learning and schedule topics as you finish them.</div>';
+  $('todayTopics').innerHTML=state.topics.length?state.topics.map(t=>`<div class="task ${t.done?'done':''}">
+    <input type="checkbox" aria-label="${t.done?'Mark syllabus topic incomplete':'Mark syllabus topic complete'}" data-kind="topic" data-id="${t.id}" ${t.done?'checked':''}>
+    <div class="taskmain">
+      <div class="row"><span class="tasktitle">${esc(t.title)}</span><span class="tag">${t.done?'Completed':esc(t.subject||'General')}</span></div>
+      <div class="meta">${esc(t.subject||'General')} · Learned ${fmt(t.date||today())}</div>
+      <button type="button" class="secondary task-toggle" data-toggle-kind="topic" data-id="${t.id}">${t.done?'✓ Completed — undo':'Mark as completed ✓'}</button>
+    </div>
+  </div>`).join(''):'<div class="empty">No syllabus topics yet. Add topics in the Revision section.</div>';
+  $('todayTopicTotal').textContent=state.topics.filter(t=>t.done).length+'/'+state.topics.length+' completed';
   $('allGoals').innerHTML=state.goals.length?state.goals.slice().sort((a,b)=>a.date.localeCompare(b.date)).map(g=>`<div>${renderTask(g)}<div style="text-align:right;margin-top:5px"><button class="danger small" data-delete-goal="${g.id}">Delete goal</button></div></div>`).join(''):'<div class="empty">Your plan starts with one goal.</div>';
   $('goalTotal').textContent=state.goals.length+' total';
   const all=dueItems().filter(r=>!r.done).sort((a,b)=>a.date.localeCompare(b.date));
